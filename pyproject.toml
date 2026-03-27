@@ -3,8 +3,9 @@ name = "cad-vision"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
+    "open3d>=0.19.0",
     "requests>=2.33.0",
     "tqdm>=4.67.3",
 ]
