@@ -180,6 +180,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "gradio" },
+    { name = "huggingface-hub" },
     { name = "matplotlib" },
     { name = "open3d" },
     { name = "opencv-python" },
@@ -194,6 +195,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "gradio", specifier = ">=6.10.0" },
+    { name = "huggingface-hub", specifier = ">=1.8.0" },
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "open3d", specifier = ">=0.19.0" },
     { name = "opencv-python", specifier = ">=4.13.0.92" },

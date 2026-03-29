@@ -4,8 +4,9 @@ src/utils/infer.py
 CADVision inference logic.
 Mirrors the role of src/predict.py in CNC Fault Detector.
 
-Loads trained MVCNN, renders 4 views from STL file,
-runs inference, returns prediction and confidence.
+Loads trained MVCNN from local path or Hugging Face Hub,
+renders 4 views from STL file, runs inference,
+returns prediction and confidence.
 
 Usage:
     from src.utils.infer import CADVisionPredictor
@@ -79,6 +80,7 @@ def render_stl(stl_path: str | Path, image_size: int = IMAGE_SIZE) -> list:
     Renders 4 views of an STL file using Open3D + matplotlib.
     Returns a list of 4 PIL Images.
     Same logic as render_dataset.py — reused here for inference.
+    Saves to BytesIO (memory) not disk — nothing written to disk during inference.
     """
     import matplotlib
     matplotlib.use("Agg")
@@ -143,7 +145,7 @@ class CADVisionPredictor:
 
     def __init__(
         self,
-        model_path: str | Path = "checkpoints/best_model.pth",
+        model_path: str | Path = None,
         num_classes: int = 24,
     ):
         self.device = self._get_device()
@@ -158,18 +160,35 @@ class CADVisionPredictor:
             return torch.device("cpu")
 
     def _load_model(self, model_path, num_classes):
-        model_path = Path(model_path)
-        if not model_path.exists():
-            raise FileNotFoundError(
-                f"Model not found at {model_path}. Run training first."
-            )
+        # if no path given download from hugging face hub
+        if model_path is None:
+            local_path = Path("checkpoints/best_model.pth")
+            if local_path.exists():
+                # use local weights if available
+                model_path = local_path
+                print(f"model loaded from {model_path}")
+            else:
+                # download from hugging face hub
+                print("downloading model from Hugging Face Hub...")
+                from huggingface_hub import hf_hub_download
+                model_path = hf_hub_download(
+                    repo_id="mathewprasanth/CADvision",
+                    filename="best_model.pth"
+                )
+                print(f"model downloaded from Hub")
+        else:
+            model_path = Path(model_path)
+            if not model_path.exists():
+                raise FileNotFoundError(
+                    f"Model not found at {model_path}. Run training first."
+                )
+            print(f"model loaded from {model_path}")
 
         model = MVCNN(num_classes=num_classes, pretrained=False)
         checkpoint = torch.load(model_path, map_location=self.device)
         model.load_state_dict(checkpoint["model_state_dict"])
         model.to(self.device)
         model.eval()
-        print(f"model loaded from {model_path}")
         return model
 
     def predict(self, stl_path: str | Path) -> dict:
@@ -210,7 +229,7 @@ class CADVisionPredictor:
             "predicted_class": class_name,
             "confidence": round(confidence, 4),
             "top3": top3,
-            "rendered_views": pil_images,  # list of 4 PIL Images for Gradio
+            "rendered_views": pil_images,
         }
 
 
