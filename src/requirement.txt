@@ -1,0 +1,16 @@
+uv run python -c "
+reqs = '''torch
+torchvision
+open3d
+matplotlib
+opencv-python
+pillow
+numpy
+gradio
+huggingface-hub
+tqdm
+'''
+with open('requirements.txt', 'w') as f:
+    f.write(reqs)
+print('done')
+"
