@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "gradio>=6.10.0",
     "matplotlib>=3.10.8",
     "open3d>=0.19.0",
     "opencv-python>=4.13.0.92",
