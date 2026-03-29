@@ -5,9 +5,6 @@ CADVision Gradio demo.
 Accepts an STL file, renders 4 views, predicts machining feature,
 generates Grad-CAM heatmap overlays.
 
-Mirrors the role of app.py (FastAPI) in CNC Fault Detector
-but uses Gradio web UI instead of REST API.
-
 Usage:
     uv run python app/app.py
 """
@@ -21,33 +18,25 @@ from src.utils.infer import CADVisionPredictor, render_stl, TRANSFORM
 from src.utils.gradcam import GradCAM
 
 
-# load model once at startup — same pattern as CNC Fault Detector
+# load model once at startup
 predictor = CADVisionPredictor()
 gcam = GradCAM(predictor.model)
 
 
 def predict(stl_file):
-    """
-    Main prediction function called by Gradio on every upload.
-    Takes STL file path, returns prediction text + 4 heatmap images.
-    """
     if stl_file is None:
         return "please upload an STL file", None, None, None, None
 
     try:
-        # render 4 views from STL
         pil_images = render_stl(stl_file)
 
-        # prepare tensor for model
         tensors = [TRANSFORM(img) for img in pil_images]
         views = torch.stack(tensors).unsqueeze(0).to(predictor.device)
 
-        # run inference
         result = predictor.predict(stl_file)
         predicted_class = result["predicted_class"]
         confidence = result["confidence"]
 
-        # generate grad-cam heatmaps
         predicted_idx = list(range(24))[
             [r["class"] for r in result["top3"]].index(predicted_class)
             if predicted_class in [r["class"] for r in result["top3"]]
@@ -55,7 +44,6 @@ def predict(stl_file):
         ]
         heatmaps = gcam.generate(views, predicted_idx, pil_images)
 
-        # format output text
         output_text = f"Predicted Feature:  {predicted_class.replace('_', ' ').title()}\n"
         output_text += f"Confidence:         {confidence * 100:.2f}%\n\n"
         output_text += "Top 3 Predictions:\n"
@@ -64,20 +52,18 @@ def predict(stl_file):
 
         return (
             output_text,
-            heatmaps[0],  # front
-            heatmaps[1],  # side
-            heatmaps[2],  # top
-            heatmaps[3],  # isometric
+            heatmaps[0],
+            heatmaps[1],
+            heatmaps[2],
+            heatmaps[3],
         )
 
     except Exception as e:
         return f"error: {str(e)}", None, None, None, None
 
 
-# build Gradio interface
 with gr.Blocks(title="CADVision") as demo:
 
-    # header row — title left, name right
     with gr.Row():
         with gr.Column(scale=3):
             gr.Markdown("# CADVision")
@@ -138,4 +124,4 @@ with gr.Blocks(title="CADVision") as demo:
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(ssr_mode=False)
