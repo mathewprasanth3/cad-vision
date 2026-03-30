@@ -4,7 +4,8 @@ scripts/render_dataset.py
 Renders each STL file from 4 camera angles (front, side, top, isometric)
 and saves them as PNG images for MVCNN training.
 
-Uses Open3D to load and normalize meshes, matplotlib for rendering.
+Uses trimesh to load and normalize meshes, matplotlib for rendering.
+Matches the rendering pipeline used in HF Space inference.
 
 Input:  data/raw/stl/<class_folder>/<model>.STL
 Output: data/renders/<class_folder>/<model>_front.png
@@ -25,7 +26,7 @@ import matplotlib
 matplotlib.use("Agg")  # no display needed
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import open3d as o3d
+import trimesh
 
 
 STL_DIR = Path("data/raw/stl")
@@ -40,37 +41,40 @@ CAMERA_VIEWS = {
 }
 
 
-def normalize_mesh(mesh):
-    bbox = mesh.get_axis_aligned_bounding_box()
-    center = bbox.get_center()
-    mesh.translate(-center)
-    extent = bbox.get_extent()
-    scale = 1.0 / max(extent)
-    mesh.scale(scale, center=[0, 0, 0])
-    return mesh
+def normalize_mesh(vertices):
+    center = vertices.mean(axis=0)
+    vertices = vertices - center
+    extent = vertices.max(axis=0) - vertices.min(axis=0)
+    scale = 1.0 / extent.max()
+    vertices = vertices * scale
+    return vertices
 
 
 def render_stl(stl_path: Path, output_dir: Path) -> bool:
     try:
-        mesh = o3d.io.read_triangle_mesh(str(stl_path))
-        if len(mesh.vertices) == 0:
-            return False
+        mesh = trimesh.load(str(stl_path))
 
-        mesh.compute_vertex_normals()
-        mesh = normalize_mesh(mesh)
+        if isinstance(mesh, trimesh.Scene):
+            mesh = trimesh.util.concatenate(mesh.dump())
 
         vertices = np.asarray(mesh.vertices)
-        triangles = np.asarray(mesh.triangles)
-        normals = np.asarray(mesh.vertex_normals)
+        triangles = np.asarray(mesh.faces)
+
+        if len(vertices) == 0:
+            return False
+
+        # normalize — center and scale to unit size
+        vertices = normalize_mesh(vertices)
 
         # build triangle face list for matplotlib
         faces = vertices[triangles]
 
-        # compute per-face normal for shading
-        face_normals = normals[triangles].mean(axis=1)
+        # use trimesh face normals directly for shading
+        face_normals = np.asarray(mesh.face_normals)
         light = np.array([1, 1, 1], dtype=float)
         light = light / np.linalg.norm(light)
         brightness = np.clip(face_normals @ light, 0.2, 1.0)
+        colors = plt.cm.Blues(brightness * 0.6 + 0.3)
 
         output_dir.mkdir(parents=True, exist_ok=True)
         stem = stl_path.stem
@@ -80,7 +84,6 @@ def render_stl(stl_path: Path, output_dir: Path) -> bool:
             ax = fig.add_subplot(111, projection="3d")
             ax.set_axis_off()
 
-            colors = plt.cm.Blues(brightness * 0.6 + 0.3)
             poly = Poly3DCollection(faces, facecolors=colors, linewidths=0)
             ax.add_collection3d(poly)
 
@@ -105,7 +108,7 @@ def render_stl(stl_path: Path, output_dir: Path) -> bool:
 
 
 def main() -> None:
-    print("CADVision - rendering dataset")
+    print("CADVision - rendering dataset with trimesh")
 
     if not STL_DIR.exists():
         print("STL directory not found, run download_data.py first")
