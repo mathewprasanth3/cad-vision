@@ -2,7 +2,7 @@
 src/utils/infer.py
 
 CADVision inference logic.
-Mirrors the role of src/predict.py in CNC Fault Detector.
+Uses trimesh instead of Open3D for lighter deployment.
 
 Loads trained MVCNN from local path or Hugging Face Hub,
 renders 4 views from STL file, runs inference,
@@ -77,38 +77,38 @@ TRANSFORM = transforms.Compose([
 
 def render_stl(stl_path: str | Path, image_size: int = IMAGE_SIZE) -> list:
     """
-    Renders 4 views of an STL file using Open3D + matplotlib.
+    Renders 4 views of an STL file using trimesh + matplotlib.
     Returns a list of 4 PIL Images.
-    Same logic as render_dataset.py — reused here for inference.
-    Saves to BytesIO (memory) not disk — nothing written to disk during inference.
     """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-    import open3d as o3d
+    import trimesh
     import io
 
-    mesh = o3d.io.read_triangle_mesh(str(stl_path))
-    if len(mesh.vertices) == 0:
-        raise ValueError(f"Could not load STL file: {stl_path}")
+    mesh = trimesh.load(str(stl_path))
 
-    mesh.compute_vertex_normals()
-
-    # normalize
-    bbox = mesh.get_axis_aligned_bounding_box()
-    center = bbox.get_center()
-    mesh.translate(-center)
-    extent = bbox.get_extent()
-    scale = 1.0 / max(extent)
-    mesh.scale(scale, center=[0, 0, 0])
+    if isinstance(mesh, trimesh.Scene):
+        mesh = trimesh.util.concatenate(mesh.dump())
 
     vertices = np.asarray(mesh.vertices)
-    triangles = np.asarray(mesh.triangles)
-    normals = np.asarray(mesh.vertex_normals)
+    triangles = np.asarray(mesh.faces)
+
+    if len(vertices) == 0:
+        raise ValueError(f"Could not load STL file: {stl_path}")
+
+    # normalize — center and scale to unit size (matches open3d bbox extent)
+    center = vertices.mean(axis=0)
+    vertices = vertices - center
+    extent = vertices.max(axis=0) - vertices.min(axis=0)
+    scale = 1.0 / extent.max()
+    vertices = vertices * scale
+
     faces = vertices[triangles]
 
-    face_normals = normals[triangles].mean(axis=1)
+    # use trimesh face normals directly for shading
+    face_normals = np.asarray(mesh.face_normals)
     light = np.array([1, 1, 1], dtype=float)
     light = light / np.linalg.norm(light)
     brightness = np.clip(face_normals @ light, 0.2, 1.0)
@@ -160,22 +160,19 @@ class CADVisionPredictor:
             return torch.device("cpu")
 
     def _load_model(self, model_path, num_classes):
-        # if no path given download from hugging face hub
         if model_path is None:
             local_path = Path("checkpoints/best_model.pth")
             if local_path.exists():
-                # use local weights if available
                 model_path = local_path
                 print(f"model loaded from {model_path}")
             else:
-                # download from hugging face hub
                 print("downloading model from Hugging Face Hub...")
                 from huggingface_hub import hf_hub_download
                 model_path = hf_hub_download(
                     repo_id="mathewprasanth/CADvision",
                     filename="best_model.pth"
                 )
-                print(f"model downloaded from Hub")
+                print("model downloaded from Hub")
         else:
             model_path = Path(model_path)
             if not model_path.exists():
@@ -198,24 +195,20 @@ class CADVisionPredictor:
         """
         stl_path = Path(stl_path)
 
-        # render 4 views from STL
         pil_images = render_stl(stl_path)
 
-        # apply transforms and stack into tensor
         tensors = [TRANSFORM(img) for img in pil_images]
         views = torch.stack(tensors)               # [4, 3, 224, 224]
         views = views.unsqueeze(0).to(self.device) # [1, 4, 3, 224, 224]
 
-        # inference
         with torch.no_grad():
-            outputs = self.model(views)            # [1, 24]
-            probabilities = F.softmax(outputs, dim=1)  # [1, 24]
+            outputs = self.model(views)
+            probabilities = F.softmax(outputs, dim=1)
 
         predicted_idx = probabilities.argmax(dim=1).item()
         confidence = probabilities[0][predicted_idx].item()
         class_name = CLASS_NAMES[predicted_idx]
 
-        # top 3 predictions
         top3_probs, top3_idx = probabilities[0].topk(3)
         top3 = [
             {
