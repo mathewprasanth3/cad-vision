@@ -3,7 +3,7 @@ app/app.py
 
 CADVision Gradio demo.
 Accepts an STL file, renders 4 views, predicts machining feature,
-generates Grad-CAM heatmap overlays.
+generates Grad-CAM heatmap overlay on isometric view.
 
 Usage:
     uv run python app/app.py
@@ -42,6 +42,8 @@ def predict(stl_file):
             if predicted_class in [r["class"] for r in result["top3"]]
             else 0
         ]
+
+        # only generate gradcam for isometric view (index 3)
         heatmaps = gcam.generate(views, predicted_idx, pil_images)
 
         output_text = f"Predicted Feature:  {predicted_class.replace('_', ' ').title()}\n"
@@ -52,10 +54,10 @@ def predict(stl_file):
 
         return (
             output_text,
-            heatmaps[0],
-            heatmaps[1],
-            heatmaps[2],
-            heatmaps[3],
+            pil_images[0],   # front — plain render
+            pil_images[1],   # side — plain render
+            pil_images[2],   # top — plain render
+            heatmaps[3],     # isometric — gradcam overlay
         )
 
     except Exception as e:
@@ -97,14 +99,18 @@ with gr.Blocks(title="CADVision") as demo:
                 lines=6,
             )
 
-    gr.Markdown("### Grad-CAM Heatmaps — where the model focused")
-    gr.Markdown("Red/yellow = model focused here. Blue = model ignored.")
+    gr.Markdown("### Rendered Views")
 
     with gr.Row():
         front_img = gr.Image(label="Front view")
         side_img = gr.Image(label="Side view")
         top_img = gr.Image(label="Top view")
-        iso_img = gr.Image(label="Isometric view")
+
+    gr.Markdown("### Grad-CAM — where the model focused (isometric view)")
+    gr.Markdown("Red/yellow = model focused here. Blue = model ignored.")
+
+    with gr.Row():
+        iso_img = gr.Image(label="Isometric view — Grad-CAM")
 
     predict_btn.click(
         fn=predict,
@@ -123,5 +129,8 @@ with gr.Blocks(title="CADVision") as demo:
     )
 
 
-if __name__ == "__main__":
-    demo.launch(ssr_mode=False)
+demo.launch(
+    server_name="0.0.0.0",
+    server_port=7860,
+    ssr_mode=False,
+)
