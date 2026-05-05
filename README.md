@@ -1,13 +1,25 @@
-# CADVision
+# 🔩 CADVision
 
 Multi-view deep learning system that takes an STL CAD file, renders it from 4 angles, and automatically predicts the machining feature class — with visual explainability via Grad-CAM.
 
-**Live Demo** → https://huggingface.co/spaces/mathewprasanth/CADVision  
-**Model Weights** → https://huggingface.co/mathewprasanth/CADVisionWeights
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-HuggingFace-yellow)](https://huggingface.co/spaces/mathewprasanth/CADVision)
+[![Model Weights](https://img.shields.io/badge/Weights-HuggingFace-blue)](https://huggingface.co/mathewprasanth/CADVisionWeights)
+[![PyTorch](https://img.shields.io/badge/PyTorch-ML-red)](https://pytorch.org)
 
 ---
 
-## What It Does
+## 📊 Results
+
+| Metric | Value |
+|---|---|
+| Test Accuracy | 99.56% |
+| Classes | 24 machining features |
+| Views per sample | 4 rendered angles |
+| Dataset | FeatureNet |
+
+---
+
+## 🧠 What It Does
 
 Identifying machining features from CAD geometry is a time-consuming step in manufacturing process planning. This system automates feature recognition from raw STL files, enabling faster downstream decisions around toolpath selection, fixturing, and setup planning.
 
@@ -20,7 +32,7 @@ This reflects real-world CAM workflows where feature recognition is the first st
 
 ---
 
-## Tech Stack
+## ⚙️ Tech Stack
 
 | Layer | Technology |
 |---|---|
@@ -35,55 +47,30 @@ This reflects real-world CAM workflows where feature recognition is the first st
 
 ---
 
-## Dataset
-
-**FeatureNet Dataset** — 24 machining feature classes.
-
-| Property | Value |
-|---|---|
-| Classes | 24 machining features |
-| Input | STL files |
-| Views per file | 4 rendered angles |
-
----
-
-## Pipeline Architecture
+## 🏗️ Pipeline Architecture
 
 ```
 STL File
--> Multi-view renderer (4 angles)
--> ResNet18 encoder (shared weights, one per view)
--> Max pooling (fuse 4 view features)
--> Classification head (24 classes)
--> Grad-CAM (attention heatmap per view)
--> Output: feature class + confidence + explainability
+→ Multi-view renderer (4 angles)
+→ ResNet18 encoder (shared weights, one per view)
+→ Max pooling (fuse 4 view features)
+→ Classification head (24 classes)
+→ Grad-CAM (attention heatmap per view)
+→ Output: feature class + confidence + explainability
 ```
 
 ---
 
-## Model Architecture
+## 🔑 Key Training Decisions
 
-### MVCNN (Multi-View CNN)
-- Encoder: ResNet18 with shared weights across all 4 views
-- Fusion: Max pooling across view embeddings
-- Classifier: Fully connected head, 24 output classes
-
-### Performance
-- Test accuracy: ~99.5%
-- Classes: 24 machining features (FeatureNet dataset)
-
----
-
-## Key Training Decisions
-
-- Shared ResNet18 weights across views — view-invariant feature learning
-- Max pooling fusion — robust to view ordering, captures strongest activations
+- Shared ResNet18 weights across views — view-invariant feature learning with fewer parameters
+- Max pooling over mean pooling — robust to uninformative views, captures strongest activations
 - Grad-CAM on individual views — shows which geometry region drove the prediction
 - Device-agnostic design (CPU / MPS / CUDA)
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 cadVision/
@@ -101,45 +88,14 @@ cadVision/
 
 ---
 
-## Inference Pipeline
-
-1. Upload STL file
-2. Renderer produces 4 views at different angles
-3. ResNet18 encodes each view independently with shared weights
-4. Max pooling fuses 4 view embeddings into one feature vector
-5. Classifier predicts machining feature class and confidence
-6. Grad-CAM generates heatmap showing prediction region on each view
-
----
-
-## Deployment
-
-- Hosted on Hugging Face Spaces
-- Model weights stored on Hugging Face Model Hub
-- Downloaded dynamically at runtime
-- Runs on CPU (HF Spaces constraint)
-
----
-
-## Key Engineering Decisions
-
-- Shared encoder weights across views — one set of parameters learns view-invariant geometry features
-- Max pooling over mean pooling — more robust to uninformative views
-- Models loaded once at startup for performance
-- Clear separation between rendering, inference, and UI
-
----
-
-## Run Locally
+## 🚀 Run Locally
 
 ```bash
-git clone https://github.com/mathewprasanth3/cadVision.git
+git clone https://github.com/mathewprasanth/cadVision.git
 cd cadVision
 pip install -r requirements.txt
 python app/app.py
 ```
-
----
 
 ## Training
 
@@ -149,28 +105,17 @@ python scripts/train/train.py
 
 ---
 
-## Results
-
-| Metric | Value |
-|---|---|
-| Test accuracy | ~99.5% |
-| Classes | 24 |
-| Views per sample | 4 |
-
----
-
-## Limitations
+## ⚠️ Limitations
 
 - Works on single-feature parts only
-- Multi-feature detection not supported yet
+- Multi-feature detection not yet supported
 
 ---
 
-## Author
+## 👤 Author
 
-**Mathew Prasanth, PE**  
-AI/ML Engineer  
-[https://www.linkedin.com/in/mathewprasanth/](https://www.linkedin.com/in/mathewprasanth/)  
-[https://huggingface.co/spaces/mathewprasanth/CADVision](https://huggingface.co/spaces/mathewprasanth/CADVision)
+**Mathew Prasanth, P.E.**
+AI/ML Engineer | U.S. Licensed Professional Engineer
+[LinkedIn](https://www.linkedin.com/in/mathewprasanth/) · [Live Demo](https://huggingface.co/spaces/mathewprasanth/CADVision)
 
-AWS Certified Cloud Practitioner · AWS Certified Machine Learning Specialty
+*AWS Certified ML Specialty · AWS Cloud Practitioner*
